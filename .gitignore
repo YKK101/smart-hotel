@@ -1,0 +1,54 @@
+# Python-related ignores
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.so
+
+# Virtual environments (common across all projects)
+venv/
+env/
+ENV/
+.venv/
+*.env
+
+# Django-related ignores
+*.log
+*.pot
+*.pyc
+*.db
+*.sqlite3
+db.sqlite3
+media/
+static/
+
+# Django migrations (per project-specific, but still global)
+*/migrations/*
+
+# Coverage and test reports
+*.cover
+*.coverage
+nosetests.xml
+coverage.xml
+*.hypothesis/
+
+# Editor/IDE-related files (for any project)
+.idea/
+.vscode/
+
+# OS system files
+.DS_Store
+Thumbs.db
+
+# Optional: Docker files if present
+docker-compose.override.yml
+Dockerfile
+*.dockerfile
+
+# Sphinx documentation
+docs/_build/
+
+# Ignore docker-compose development files
+development-compose/docker-compose.*.yml
+
+# Other per-project exclusions can go here

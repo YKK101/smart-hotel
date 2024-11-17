@@ -1,0 +1,1 @@
+default_app_config = 'sensor_agent_app.apps.SensorAgentAppConfig'

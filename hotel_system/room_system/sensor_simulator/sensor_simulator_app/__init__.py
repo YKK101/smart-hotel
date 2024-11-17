@@ -1,0 +1,1 @@
+default_app_config = 'sensor_simulator_app.apps.SensorSimulatorAppConfig'

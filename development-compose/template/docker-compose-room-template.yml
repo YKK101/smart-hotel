@@ -1,0 +1,226 @@
+services:
+  [VARIABLE_ROOM_NO]-database:
+    image: timescale/timescaledb:latest-pg14
+    container_name: [VARIABLE_ROOM_NO]_database
+    environment:
+      - POSTGRES_DB=smart_hotel
+      - POSTGRES_USER=[VARIABLE_PG_USER]
+      - POSTGRES_PASSWORD=[VARIABLE_PG_PASSWORD]
+    ports:
+      - [VARIABLE_PG_EXPOSE_PORT]:5432
+    volumes:
+      - [VARIABLE_ROOM_NO]_database_data:/var/lib/postgresql/data
+    restart: always
+    networks:
+      - [VARIABLE_ROOM_NO]_network
+
+  [VARIABLE_ROOM_NO]-emqx:
+    image: emqx/emqx:latest
+    container_name: [VARIABLE_ROOM_NO]_emqx
+    ports:
+      - [VARIABLE_EMQX_EXPOSE_PORT]:1883
+    environment:
+      - EMQX_NAME=[VARIABLE_ROOM_NO]_emqx
+      - EMQX_ALLOW_ANONYMOUS="true" 
+    volumes:
+      - [VARIABLE_ROOM_NO]_emqx_data:/opt/emqx/data
+      - [VARIABLE_ROOM_NO]_emqx_log:/opt/emqx/log
+    restart: always
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx_ctl", "status", "||", "exit", "1"]
+      interval: 10s
+      retries: 5
+      start_period: 10s
+      timeout: 5s
+    networks:
+      - [VARIABLE_ROOM_NO]_network
+
+  [VARIABLE_ROOM_NO]-lifebeingsensor:
+    build:
+      context: ../hotel_system/room_system/sensor_simulator
+    container_name: [VARIABLE_ROOM_NO]_lifebeing_sensor_simulator
+    volumes:
+      - [VARIABLE_ROOM_NO]_lifebeingsensor_data:/app
+    ports:
+      - [VARIABLE_LIFEBEING_SENSOR_EXPOSE_PORT]:8000 
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DJANGO_DEBUG=True
+      - DJANGO_SECRET_KEY=[VARIABLE_LIFEBEING_SENSOR_SECRET]
+      - DEVICE_TYPE=lifebeing
+      - DEVICE_ID=[VARIABLE_LIFEBEING_SENSOR_DEVICE_ID]
+      - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,[VARIABLE_ROOM_NO]-lifebeingsensor
+    networks:
+      - [VARIABLE_ROOM_NO]_network
+
+  [VARIABLE_ROOM_NO]-iaqsensor:
+    build:
+      context: ../hotel_system/room_system/sensor_simulator
+    container_name: [VARIABLE_ROOM_NO]_iaq_sensor_simulator
+    volumes:
+      - [VARIABLE_ROOM_NO]_iaqsensor_data:/app
+    ports:
+      - [VARIABLE_IAQ_SENSOR_EXPOSE_PORT]:8000
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DJANGO_DEBUG=True
+      - DJANGO_SECRET_KEY=[VARIABLE_IAQ_SENSOR_SECRET]
+      - DEVICE_TYPE=iaq
+      - DEVICE_ID=[VARIABLE_IAQ_SENSOR_DEVICE_ID]
+      - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,[VARIABLE_ROOM_NO]-iaqsensor
+    networks:
+      - [VARIABLE_ROOM_NO]_network
+  
+  [VARIABLE_ROOM_NO]-iaqdevice-simulator:
+    build:
+      context: ../hotel_system/room_system/device_simulator
+    container_name: [VARIABLE_ROOM_NO]_iaq_device_simulator
+    volumes:
+      - [VARIABLE_ROOM_NO]_iaqdevice_data:/app
+    ports:
+      - [VARIABLE_IAQ_DEVICE_EXPOSE_PORT]:8000
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DJANGO_DEBUG=True
+      - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,[VARIABLE_ROOM_NO]-iaqdevice-simulator
+      - DJANGO_SECRET_KEY=[VARIABLE_IAQ_DEVICE_SECRET]
+      - DEVICE_ID=[VARIABLE_IAQ_SENSOR_DEVICE_ID]
+    networks:
+      - [VARIABLE_ROOM_NO]_network
+
+  [VARIABLE_ROOM_NO]-lifebeingagent:
+    build:
+      context: ../hotel_system/room_system/sensor_agent
+    container_name: [VARIABLE_ROOM_NO]_lifebeing_sensor_agent
+    volumes:
+      - [VARIABLE_ROOM_NO]_lifebeingagent_data:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DJANGO_DEBUG=True
+      - DJANGO_SECRET_KEY=[VARIABLE_LIFEBEING_AGENT_SECRET]
+      - GET_SENSOR_DATA_URL=http://[VARIABLE_ROOM_NO]-lifebeingsensor:8000/api
+      - DEVICE_TYPE=lifebeing
+      - FETCH_INTERVAL=5
+      - MQTT_BROKER=[VARIABLE_ROOM_NO]-emqx
+      - MQTT_PORT=1883
+      - MQTT_TOPIC=lifebeingsensor/hotels/[VARIABLE_HOTEL_NO]/floors/[VARIABLE_FLOOR_NO]/rooms/[VARIABLE_ROOM_NO]
+    restart: on-failure
+    depends_on:
+      [VARIABLE_ROOM_NO]-emqx:
+        condition: service_healthy
+      [VARIABLE_ROOM_NO]-lifebeingsensor:
+        condition: service_started
+    networks:
+      - [VARIABLE_ROOM_NO]_network
+
+  [VARIABLE_ROOM_NO]-iaqagent:
+    build:
+      context: ../hotel_system/room_system/sensor_agent
+    container_name: [VARIABLE_ROOM_NO]_iaq_sensor_agent
+    volumes:
+      - [VARIABLE_ROOM_NO]_iaqagent_data:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DJANGO_DEBUG=True
+      - DJANGO_SECRET_KEY=[VARIABLE_IAQ_AGENT_SECRET]
+      - GET_SENSOR_DATA_URL=http://[VARIABLE_ROOM_NO]-iaqsensor:8000/api
+      - DEVICE_TYPE=iaq
+      - FETCH_INTERVAL=5
+      - MQTT_BROKER=[VARIABLE_ROOM_NO]-emqx
+      - MQTT_PORT=1883
+      - MQTT_TOPIC=iaqsensor/hotels/[VARIABLE_HOTEL_NO]/floors/[VARIABLE_FLOOR_NO]/rooms/[VARIABLE_ROOM_NO]
+    restart: on-failure
+    depends_on:
+      [VARIABLE_ROOM_NO]-emqx:
+        condition: service_healthy
+      [VARIABLE_ROOM_NO]-lifebeingsensor:
+        condition: service_started
+    networks:
+      - [VARIABLE_ROOM_NO]_network
+
+  [VARIABLE_ROOM_NO]-datalogger:
+    build:
+      context: ../hotel_system/room_system/data_logger
+    container_name: [VARIABLE_ROOM_NO]_data_logger
+    volumes:
+      - [VARIABLE_ROOM_NO]_datalogger_data:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DJANGO_DEBUG=True
+      - DJANGO_SECRET_KEY=[VARIABLE_DATALOGGER_SECRET]
+      - MQTT_BROKER=[VARIABLE_ROOM_NO]-emqx
+      - MQTT_PORT=1883
+      - MQTT_TOPIC=+/hotels/[VARIABLE_HOTEL_NO]/floors/[VARIABLE_FLOOR_NO]/rooms/[VARIABLE_ROOM_NO]/#
+      - DB_NAME=smart_hotel
+      - DB_USER=[VARIABLE_PG_USER]
+      - DB_PASSWORD=[VARIABLE_PG_PASSWORD]
+      - DB_HOST=[VARIABLE_ROOM_NO]_database
+      - DB_PORT=5432
+    restart: on-failure
+    depends_on:
+      [VARIABLE_ROOM_NO]-emqx:
+        condition: service_healthy
+      [VARIABLE_ROOM_NO]-database:
+        condition: service_started
+    networks:
+      - [VARIABLE_ROOM_NO]_network
+
+  [VARIABLE_ROOM_NO]-devicecontroller:
+    build:
+      context: ../hotel_system/room_system/device_controller
+    container_name: [VARIABLE_ROOM_NO]_device_controller
+    volumes:
+      - [VARIABLE_ROOM_NO]_devicecontroller_data:/app
+      - ./configs:/app/configs
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DJANGO_DEBUG=True
+      - DJANGO_SECRET_KEY=[VARIABLE_DEVICE_CONTROLLER_SECRET]
+      - MQTT_BROKER=[VARIABLE_ROOM_NO]-emqx
+      - MQTT_PORT=1883
+      - MQTT_TOPIC=control/hotels/[VARIABLE_HOTEL_NO]/floors/[VARIABLE_FLOOR_NO]/rooms/[VARIABLE_ROOM_NO]
+    restart: on-failure
+    depends_on:
+      [VARIABLE_ROOM_NO]-emqx:
+        condition: service_healthy
+    networks:
+      - [VARIABLE_ROOM_NO]_network
+  
+  [VARIABLE_ROOM_NO]-occupancydetection:
+    build:
+      context: ../hotel_system/room_system/occupancy_detection_service
+    container_name: [VARIABLE_ROOM_NO]_occupancy_detection
+    volumes:
+      - [VARIABLE_ROOM_NO]_occupancydetection_data:/app
+      - ./configs:/app/configs
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DJANGO_DEBUG=True
+      - DJANGO_SECRET_KEY=[VARIABLE_OCCUPENCY_DETECTOR_SECRET]
+      - MQTT_BROKER=[VARIABLE_ROOM_NO]-emqx
+      - MQTT_PORT=1883
+      - MQTT_SUBSCRIPTION_TOPIC=lifebeingsensor/hotels/[VARIABLE_HOTEL_NO]/floors/[VARIABLE_FLOOR_NO]/rooms/[VARIABLE_ROOM_NO]/presence_state
+      - MQTT_PUBLISH_TOPIC=control/hotels/[VARIABLE_HOTEL_NO]/floors/[VARIABLE_FLOOR_NO]/rooms/[VARIABLE_ROOM_NO]
+    restart: on-failure
+    depends_on:
+      [VARIABLE_ROOM_NO]-emqx:
+        condition: service_healthy
+    networks:
+      - [VARIABLE_ROOM_NO]_network
+    
+volumes:
+  [VARIABLE_ROOM_NO]_database_data:
+  [VARIABLE_ROOM_NO]_emqx_data:
+  [VARIABLE_ROOM_NO]_emqx_log:
+  [VARIABLE_ROOM_NO]_lifebeingsensor_data:
+  [VARIABLE_ROOM_NO]_iaqsensor_data:
+  [VARIABLE_ROOM_NO]_iaqdevice_data:
+  [VARIABLE_ROOM_NO]_lifebeingagent_data:
+  [VARIABLE_ROOM_NO]_iaqagent_data:
+  [VARIABLE_ROOM_NO]_datalogger_data:
+  [VARIABLE_ROOM_NO]_devicecontroller_data:
+  [VARIABLE_ROOM_NO]_occupancydetection_data:
+
+networks:
+  [VARIABLE_ROOM_NO]_network:
+    driver: bridge

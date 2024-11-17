@@ -1,0 +1,5 @@
+Django>=4.0,<5.0
+djangorestframework
+paho-mqtt
+psycopg2-binary==2.9.10
+pytz==2024.2

@@ -1,0 +1,4 @@
+{
+    "IAQ-LUCKY-2001": "http://2001-iaqdevice:8000/api",
+    "IAQ-LUCKY-2002": "http://2002-iaqdevice:8000/api"
+}

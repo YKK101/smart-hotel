@@ -1,0 +1,1 @@
+default_app_config = 'data_logger_app.apps.DataLoggerAppConfig'
